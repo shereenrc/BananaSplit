@@ -1,0 +1,297 @@
+=== FILE: README.md ===
+# Banana Split AI — Nano Banana Prompt Generator
+
+This is a minimal, modular Next.js + Tailwind app built for Vercel. It contains a dashboard of micro-tools (Erase people, Change outfit, etc.), each with an input/output preview and a prompt-template text area that follows the Gemini (Nano Banana) image-generation prompt guidance.
+
+The repo includes:
+- `pages/` — Next.js pages (index)
+- `components/` — UI components (Dashboard, ToolCard)
+- `styles/` — global CSS (Tailwind + defaults)
+- `lib/` — DB schema and helper
+- `public/` — placeholder images
+
+## Local run
+1. `npm install`
+2. `npm run dev`
+3. Open `http://localhost:3000`
+
+## Deploy to Vercel
+1. Create a new Vercel project and link this repo
+2. Set `NEXT_PUBLIC_GEMINI_GUIDE=true` (optional flag used internally)
+3. Deploy
+
+Note: This app **does not** call any Gemini API — the goal is to produce an *image prompt text* (the "result").
+
+=== FILE: package.json ===
+{
+  "name": "banana-split-ai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "clsx": "1.2.1"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.4.14",
+    "postcss": "8.4.23",
+    "tailwindcss": "3.4.7"
+  }
+}
+
+=== FILE: next.config.js ===
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+}
+module.exports = nextConfig
+
+=== FILE: tailwind.config.js ===
+module.exports = {
+  content: ["./pages/**/*.{js,ts,jsx,tsx}", "./components/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        accent: '#6b7280',
+        accentDark: '#374151',
+        action: '#0ea5a4',
+      }
+    }
+  },
+  plugins: [],
+}
+
+=== FILE: postcss.config.js ===
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+
+=== FILE: pages/_app.js ===
+import '../styles/globals.css'
+export default function App({ Component, pageProps }) {
+  return <Component {...pageProps} />
+}
+
+=== FILE: styles/globals.css ===
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+  --bg: #f7f7f9;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --accent: #0ea5a4;
+}
+
+html,body,#__next{height:100%;}
+body{
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background:var(--bg);
+  color:#111827;
+}
+
+/* small helpers */
+.container{max-width:1100px;margin-left:auto;margin-right:auto;padding:2rem}
+
+=== FILE: lib/tools.js ===
+export const TOOLS = [
+  {
+    id: 'erase',
+    title: 'Erase people / objects',
+    subtitle: 'Classic viral use case',
+    exampleInput: '/images/erase-input.jpg',
+    exampleOutput: '/images/erase-output.jpg',
+    template: `As described in the Gemini image generation guide, produce an image-edit prompt for removing specified people or objects.\n\nINSTRUCTION: Remove the selected objects or people while preserving lighting, shadows, and original subject face.\n\nCONTEXT: [describe the scene briefly, camera, lighting].\n\nREQUIREMENTS:\n- Keep background consistent and fill gaps realistically.\n- Preserve primary subject identity and facial features unchanged.\n- Return only the final single-line prompt text for the image generator.`
+  },
+  {
+    id: 'change-outfit',
+    title: 'Change outfit',
+    subtitle: 'Swap casual to formal, add uniforms',
+    exampleInput: '/images/outfit-input.jpg',
+    exampleOutput: '/images/outfit-output.jpg',
+    template: `Create an image-edit prompt to change the subject's outfit while keeping face and pose unchanged.\n\nSTYLE: specify era, garment types, fabrics, and level of detail.\n\nREQUIREMENTS:\n- Preserve body pose, proportions and face.\n- Realistic fabric folds, consistent lighting, natural skin-tone rendering.`
+  },
+  {
+    id: 'lighting-fixer',
+    title: 'Lighting fixer',
+    subtitle: 'Brighten dark photos or add cinematic lighting',
+    exampleInput: '/images/lighting-input.jpg',
+    exampleOutput: '/images/lighting-output.jpg',
+    template: `Generate a prompt to retouch lighting: brighten underexposed areas, increase dynamic range, add cinematic key light and soft rim light if requested.\n\nCONSTRAINTS: preserve color balance and face details.`
+  },
+  {
+    id: 'bg-styler',
+    title: 'AI background styler',
+    subtitle: 'Auto-generate new backdrops',
+    exampleInput: '/images/bg-input.jpg',
+    exampleOutput: '/images/bg-output.jpg',
+    template: `Produce a prompt to replace or enhance the background. Specify theme (e.g. 'californian summer landscape'), depth of field, and mood while preserving the subject and their shadows on the ground.`
+  },
+  {
+    id: 'pose-corrector',
+    title: 'Pose corrector',
+    subtitle: 'Adjust awkward body positions',
+    exampleInput: '/images/pose-input.jpg',
+    exampleOutput: '/images/pose-output.jpg',
+    template: `Create a prompt that adjusts the subject's pose subtly for natural posture while preserving clothing, lighting, and facial expression.`
+  },
+  {
+    id: 'add-parts',
+    title: 'Add missing parts',
+    subtitle: 'Fix cut-off hands, heads, props',
+    exampleInput: '/images/parts-input.jpg',
+    exampleOutput: '/images/parts-output.jpg',
+    template: `Produce a concise prompt to reconstruct missing anatomy or props. Emphasize anatomical correctness, skin texture match, and consistent lighting.`
+  },
+  {
+    id: 'what-if',
+    title: "What if it were taken by...",
+    subtitle: 'Emulate photography styles (Leica M10, Wes Anderson, etc.)',
+    exampleInput: '/images/style-input.jpg',
+    exampleOutput: '/images/style-output.jpg',
+    template: `Generate a style-transfer prompt to emulate the requested photographic style. Provide camera, lens, film or color grading details, and framing guidance.`
+  },
+  {
+    id: 'hand-fixer',
+    title: 'Hand fixer',
+    subtitle: 'Automatically fix distorted AI-generated hands',
+    exampleInput: '/images/hands-input.jpg',
+    exampleOutput: '/images/hands-output.jpg',
+    template: `Create a prompt to correct hand anatomy and finger placement. Prioritize natural finger lengths, realistic joint bends, and consistent shadows.`
+  }
+]
+
+=== FILE: public/images/erase-input.jpg ===
+<placeholder: put your input images in public/images and keep filenames matching lib/tools.js examples>
+
+=== FILE: components/ToolCard.jsx ===
+import React from 'react'
+import clsx from 'clsx'
+
+export default function ToolCard({tool}){
+  return (
+    <article className="bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-3" role="article" aria-labelledby={`title-${tool.id}`}>
+      <header>
+        <h3 id={`title-${tool.id}`} className="font-semibold text-lg">{tool.title}</h3>
+        <p className="text-sm text-gray-500">{tool.subtitle}</p>
+      </header>
+
+      <div className="flex gap-3 items-start sm:items-center flex-col sm:flex-row">
+        <figure className="w-full sm:w-1/3 bg-gray-50 rounded overflow-hidden border border-gray-100">
+          <img src={tool.exampleInput} alt={`${tool.title} input`} className="w-full h-36 object-cover"/>
+          <figcaption className="p-2 text-xs text-gray-400">Input</figcaption>
+        </figure>
+        <figure className="w-full sm:w-1/3 bg-gray-50 rounded overflow-hidden border border-gray-100">
+          <img src={tool.exampleOutput} alt={`${tool.title} output`} className="w-full h-36 object-cover"/>
+          <figcaption className="p-2 text-xs text-gray-400">Output (example)</figcaption>
+        </figure>
+
+        <div className="flex-1 w-full">
+          <label htmlFor={`prompt-${tool.id}`} className="sr-only">Prompt template</label>
+          <textarea id={`prompt-${tool.id}`} defaultValue={tool.template} rows={8} className="w-full p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm resize-none" aria-describedby={`help-${tool.id}`}></textarea>
+          <div className="mt-2 flex items-center gap-3">
+            <button className="inline-flex items-center gap-2 px-3 py-2 bg-action text-white rounded-md shadow-sm" onClick={async (e)=>{
+              const el = document.getElementById(`prompt-${tool.id}`)
+              await navigator.clipboard.writeText(el.value)
+              // minimal accessible feedback
+              const status = document.getElementById(`status-${tool.id}`)
+              status.textContent = 'Prompt copied to clipboard'
+              setTimeout(()=>status.textContent='',1600)
+            }} aria-label={`Copy prompt for ${tool.title}`}>Copy prompt</button>
+            <button className="px-3 py-2 border rounded-md text-sm" onClick={()=>{
+              const el = document.getElementById(`prompt-${tool.id}`)
+              // reset to template
+              el.value = tool.template
+            }}>Reset</button>
+            <span id={`status-${tool.id}`} className="text-sm text-green-600" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
+
+    </article>
+  )
+}
+
+=== FILE: components/Dashboard.jsx ===
+import React from 'react'
+import ToolCard from './ToolCard'
+import { TOOLS } from '../lib/tools'
+
+export default function Dashboard(){
+  return (
+    <main className="container">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Banana Split AI</h1>
+          <p className="text-gray-500">Nano banana prompt generator — pick a micro-tool and copy the Gemini-style prompt.</p>
+        </div>
+        <nav aria-label="Primary">
+          <a className="text-sm px-3 py-2 rounded-md border" href="#">Docs</a>
+        </nav>
+      </div>
+
+      <section className="grid gap-5 grid-cols-1 sm:grid-cols-2">
+        {TOOLS.map((t)=> <ToolCard key={t.id} tool={t} />)}
+      </section>
+
+      <footer className="mt-8 text-sm text-gray-400">Prompts are structured in accordance with the Gemini image-generation guidance.</footer>
+    </main>
+  )
+}
+
+=== FILE: pages/index.js ===
+import dynamic from 'next/dynamic'
+import Head from 'next/head'
+const Dashboard = dynamic(()=>import('../components/Dashboard'), { ssr: false })
+
+export default function Home(){
+  return (
+    <>
+      <Head>
+        <title>Banana Split AI — Nano banana prompt generator</title>
+        <meta name="description" content="Generate image-edit prompt templates for popular micro-tools" />
+      </Head>
+      <Dashboard />
+    </>
+  )
+}
+
+=== FILE: lib/db/schema.sql ===
+-- Example Postgres schema. Use your preferred DB or ORM (Prisma, TypeORM, etc.)
+
+CREATE TABLE users (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  email varchar(255) UNIQUE,
+  name varchar(255),
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE prompts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  tool_id varchar(64) NOT NULL,
+  prompt_text text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX prompts_tool_id_idx ON prompts(tool_id);
+
+=== FILE: README_DEPLOY.md ===
+Basic deploy notes & accessibility
+- Vercel: add environment variables if needed
+- Ensure `public/images` contains sample images for each tool
+- Accessibility: all interactive elements have labels, status text uses aria-live
+
+=== FILE: LICENSE ===
+MIT
